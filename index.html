@@ -1032,32 +1032,46 @@ function renderTable(data) {
 // =============================================
 function renderCommission(data) {
   const c = data.commission;
-  const q1_inc = c.q1_gross_current - c.q1_gross_prev;
-  const q2_inc = c.q2_gross_current - c.q2_gross_prev;
 
-  const ooya_q1 = Math.max(0, q1_inc * c.ooya_rate);
-  const ooya_q2 = Math.max(0, q2_inc * c.ooya_rate);
+  // Q1+Q2合計で前年増分を計算
+  const h1_current = c.q1_gross_current + c.q2_gross_current;
+  const h1_prev    = c.q1_gross_prev    + c.q2_gross_prev;
+  const h1_inc     = h1_current - h1_prev;
+
+  // 大家さん: H1合計増分 × 13%（増分がマイナスなら0）
+  const ooya = Math.max(0, h1_inc * c.ooya_rate);
+
+  // 佐々木さん: Q1/Q2それぞれ × 1%
   const sasaki_q1 = c.q1_gross_current * c.sasaki_rate;
   const sasaki_q2 = c.q2_gross_current * c.sasaki_rate;
+  const sasaki_h1 = sasaki_q1 + sasaki_q2;
 
   document.getElementById('commissionGrid').innerHTML = `
     <div class="commission-card">
-      <div class="commission-name">🏠 大家さん コミッション（粗利前年増分 × ${(c.ooya_rate*100)}%）</div>
+      <div class="commission-name">🏠 大家さん コミッション（上半期粗利 前年増分 × ${(c.ooya_rate*100)}%）</div>
       <div class="commission-row">
-        <span class="commission-row-label">Q1 前年差（粗利）</span>
-        <span class="commission-row-value ${deltaClass(q1_inc)}">${fmtDelta(q1_inc)}</span>
+        <span class="commission-row-label">Q1 粗利（今期）</span>
+        <span class="commission-row-value">¥${fmt(c.q1_gross_current)}</span>
       </div>
       <div class="commission-row">
-        <span class="commission-row-label">Q1 コミッション</span>
-        <span class="commission-row-value">¥${fmt(ooya_q1)}</span>
+        <span class="commission-row-label">Q2 粗利（今期）</span>
+        <span class="commission-row-value">¥${fmt(c.q2_gross_current)}</span>
       </div>
       <div class="commission-row">
-        <span class="commission-row-label">Q2 前年差（粗利）</span>
-        <span class="commission-row-value ${deltaClass(q2_inc)}">${fmtDelta(q2_inc)}</span>
+        <span class="commission-row-label">上半期合計（今期）</span>
+        <span class="commission-row-value">¥${fmt(h1_current)}</span>
       </div>
       <div class="commission-row">
-        <span class="commission-row-label">Q2 コミッション</span>
-        <span class="commission-row-value">¥${fmt(ooya_q2)}</span>
+        <span class="commission-row-label">上半期合計（前年）</span>
+        <span class="commission-row-value" style="color:var(--text-muted)">¥${fmt(h1_prev)}</span>
+      </div>
+      <div class="commission-row">
+        <span class="commission-row-label">前年増分（H1合計）</span>
+        <span class="commission-row-value ${deltaClass(h1_inc)}">${fmtDelta(h1_inc)}</span>
+      </div>
+      <div class="commission-row" style="margin-top:4px;border-top:2px solid var(--border);padding-top:10px">
+        <span class="commission-row-label" style="font-weight:600;color:var(--text)">コミッション合計</span>
+        <span class="commission-row-value" style="font-size:16px;font-weight:700;color:var(--accent)">¥${fmt(ooya)}</span>
       </div>
     </div>
     <div class="commission-card">
@@ -1077,6 +1091,10 @@ function renderCommission(data) {
       <div class="commission-row">
         <span class="commission-row-label">Q2 コミッション</span>
         <span class="commission-row-value">¥${fmt(sasaki_q2)}</span>
+      </div>
+      <div class="commission-row" style="margin-top:4px;border-top:2px solid var(--border);padding-top:10px">
+        <span class="commission-row-label" style="font-weight:600;color:var(--text)">コミッション合計</span>
+        <span class="commission-row-value" style="font-size:16px;font-weight:700;color:var(--accent)">¥${fmt(sasaki_h1)}</span>
       </div>
     </div>
   `;
