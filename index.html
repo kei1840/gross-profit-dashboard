@@ -58,11 +58,8 @@
   header {
     border-bottom: 1px solid var(--border);
     padding: 20px 0;
-    position: sticky;
-    top: 0;
-    background: rgba(245,247,250,0.95);
+    background: rgba(245,247,250,0.97);
     backdrop-filter: blur(12px);
-    z-index: 100;
   }
 
   .header-inner {
@@ -515,9 +512,58 @@
     .chart-wide { grid-column: 1; }
     .commission-grid { grid-template-columns: 1fr; }
   }
+
+  /* Nav bar */
+  .nav-bar {
+    background: #0f172a;
+    border-bottom: 2px solid #1e293b;
+    position: sticky; top: 0; z-index: 101;
+  }
+  .nav-inner {
+    max-width: 1400px; margin: 0 auto; padding: 0 24px;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .nav-label {
+    font-size: 10px; font-family: 'DM Mono', monospace; color: #475569;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 0 14px 0 0; border-right: 1px solid #1e293b;
+    margin-right: 4px; white-space: nowrap;
+  }
+  .nav-link {
+    display: flex; align-items: center; gap: 8px;
+    padding: 11px 18px; font-size: 13px;
+    font-family: 'Noto Sans JP', sans-serif; font-weight: 500;
+    color: #94a3b8; text-decoration: none;
+    border-bottom: 3px solid transparent; margin-bottom: -2px;
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .nav-link:hover { color: #e2e8f0; background: rgba(255,255,255,0.04); }
+  .nav-link.active { color: #ffffff; border-bottom-color: var(--accent); }
+  .nav-icon {
+    width: 22px; height: 22px; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-family: 'DM Mono', monospace; font-weight: 600;
+  }
+  .nav-link.active .nav-icon { background: var(--accent); color: #fff; }
+  .nav-link:not(.active) .nav-icon { background: #1e293b; color: #64748b; }
+
 </style>
 </head>
 <body>
+
+<nav class="nav-bar">
+  <div class="nav-inner">
+    <span class="nav-label">ダッシュボード一覧</span>
+    <a href="index.html" class="nav-link active">
+      <span class="nav-icon">粗利</span>
+      粗利分析ダッシュボード
+    </a>
+    <a href="3pl-pnl.html" class="nav-link">
+      <span class="nav-icon">3PL</span>
+      3PL損益ダッシュボード
+    </a>
+  </div>
+</nav>
 
 <header>
   <div class="container">

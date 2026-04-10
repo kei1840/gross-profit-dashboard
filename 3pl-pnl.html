@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3PL損益ダッシュボード</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f7fa;
+    --surface: #ffffff;
+    --surface2: #eef2f7;
+    --border: #dde3ed;
+    --accent: #0ea88a;
+    --accent2: #2563eb;
+    --accent3: #d97706;
+    --accent4: #7c3aed;
+    --danger: #dc2626;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --text-dim: #334155;
+    --positive: #059669;
+    --negative: #dc2626;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(14,168,138,0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(14,168,138,0.06) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container { max-width: 1400px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 0;
+    background: rgba(245,247,250,0.97);
+    backdrop-filter: blur(12px);
+  }
+
+  .header-inner { display: flex; align-items: center; justify-content: space-between; }
+
+  .logo { display: flex; align-items: center; gap: 12px; }
+
+  .logo-mark {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500; color: #fff;
+  }
+
+  .logo-text { font-size: 16px; font-weight: 500; letter-spacing: 0.02em; }
+  .logo-sub { font-size: 11px; color: var(--text-muted); font-family: 'DM Mono', monospace; margin-top: 1px; }
+
+  .header-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  .period-badge {
+    background: var(--surface2); border: 1px solid var(--border);
+    padding: 6px 14px; border-radius: 20px;
+    font-size: 12px; font-family: 'DM Mono', monospace; color: var(--accent);
+  }
+
+  .month-tabs { display: flex; gap: 4px; }
+
+  .month-tab {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-muted); padding: 5px 12px; border-radius: 6px;
+    font-size: 11px; font-family: 'DM Mono', monospace; cursor: pointer; transition: all 0.15s;
+  }
+  .month-tab:hover { border-color: var(--accent); color: var(--accent); }
+  .month-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .upload-btn {
+    background: transparent; border: 1px solid var(--accent); color: var(--accent);
+    padding: 7px 16px; border-radius: 6px; font-size: 12px;
+    font-family: 'Noto Sans JP', sans-serif; cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .upload-btn:hover { background: var(--accent); color: #fff; }
+
+  main { padding: 28px 0 60px; }
+
+  .kpi-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 16px; margin-bottom: 28px;
+  }
+
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    position: relative; overflow: hidden; transition: border-color 0.2s;
+  }
+  .kpi-card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+  .kpi-card.green::after { background: var(--accent); }
+  .kpi-card.blue::after { background: var(--accent2); }
+  .kpi-card.amber::after { background: var(--accent3); }
+  .kpi-card.purple::after { background: var(--accent4); }
+  .kpi-card:hover { border-color: rgba(14,168,138,0.4); }
+
+  .kpi-label { font-size: 11px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; }
+  .kpi-value { font-family: 'DM Mono', monospace; font-size: 24px; font-weight: 500; line-height: 1; margin-bottom: 8px; }
+  .kpi-sub { font-size: 12px; color: var(--text-muted); }
+
+  .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .section-title { font-size: 13px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); white-space: nowrap; }
+  .section-line { flex: 1; height: 1px; background: var(--border); }
+
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
+  .chart-wide { grid-column: 1 / -1; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  .card-title {
+    font-size: 13px; font-weight: 500; color: var(--text-dim);
+    margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .chart-container { position: relative; height: 260px; }
+  .chart-container.tall { height: 320px; }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead tr { border-bottom: 1px solid var(--border); }
+  th {
+    text-align: right; padding: 10px 12px;
+    font-size: 11px; font-weight: 500; color: var(--text-muted);
+    letter-spacing: 0.05em; white-space: nowrap;
+  }
+  th:first-child { text-align: left; }
+  tbody tr { border-bottom: 1px solid rgba(221,227,237,0.8); transition: background 0.15s; }
+  tbody tr:hover { background: rgba(0,0,0,0.02); }
+  td { padding: 10px 12px; text-align: right; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text-dim); }
+  td:first-child { text-align: left; font-family: 'Noto Sans JP', sans-serif; font-size: 13px; color: var(--text); }
+
+  tr.subtotal td { font-weight: 600; color: var(--text); background: rgba(0,0,0,0.02); border-top: 1px solid var(--border); }
+  tr.total td { font-weight: 700; color: var(--accent); background: rgba(14,168,138,0.06); border-top: 2px solid rgba(14,168,138,0.3); }
+
+  .positive { color: var(--positive) !important; }
+  .negative { color: var(--negative) !important; }
+
+  .client-badge {
+    display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 4px;
+    margin-right: 6px; font-family: 'DM Mono', monospace;
+  }
+  .badge-shirako { background: rgba(14,168,138,0.12); color: var(--accent); }
+  .badge-mutou { background: rgba(37,99,235,0.12); color: var(--accent2); }
+  .badge-yoshikawa { background: rgba(217,119,6,0.12); color: var(--accent3); }
+  .badge-natura { background: rgba(124,58,237,0.12); color: var(--accent4); }
+
+  /* Modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 200;
+    align-items: center; justify-content: center; backdrop-filter: blur(4px);
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 32px; width: 480px; max-width: 90vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  }
+  .modal-title { font-size: 16px; font-weight: 500; margin-bottom: 8px; }
+  .modal-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.6; }
+  .drop-zone {
+    border: 2px dashed var(--border); border-radius: 10px; padding: 32px;
+    text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 16px;
+  }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: rgba(14,168,138,0.04); }
+  .drop-icon { font-size: 32px; margin-bottom: 10px; }
+  .drop-text { font-size: 13px; color: var(--text-muted); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+  .btn-cancel {
+    background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+    padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: 'Noto Sans JP', sans-serif;
+  }
+  .btn-process {
+    background: var(--accent); border: none; color: #fff;
+    padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    font-family: 'Noto Sans JP', sans-serif; font-weight: 500; display: none;
+  }
+  .status-msg { font-size: 12px; padding: 8px 12px; border-radius: 6px; margin-top: 10px; display: none; }
+  .status-msg.success { background: rgba(5,150,105,0.1); color: var(--positive); border: 1px solid rgba(5,150,105,0.3); }
+  .status-msg.error { background: rgba(220,38,38,0.1); color: var(--negative); border: 1px solid rgba(220,38,38,0.3); }
+
+  footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 11px; color: var(--text-muted); font-family: 'DM Mono', monospace; }
+
+  @media (max-width: 900px) {
+    .kpi-grid { grid-template-columns: repeat(2,1fr); }
+    .charts-grid { grid-template-columns: 1fr; }
+    .chart-wide { grid-column: 1; }
+    .month-tabs { flex-wrap: wrap; }
+  }
+
+  /* Nav bar */
+  .nav-bar {
+    background: #0f172a;
+    border-bottom: 2px solid #1e293b;
+    position: sticky; top: 0; z-index: 101;
+  }
+  .nav-inner {
+    max-width: 1400px; margin: 0 auto; padding: 0 24px;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .nav-label {
+    font-size: 10px; font-family: 'DM Mono', monospace; color: #475569;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 0 14px 0 0; border-right: 1px solid #1e293b;
+    margin-right: 4px; white-space: nowrap;
+  }
+  .nav-link {
+    display: flex; align-items: center; gap: 8px;
+    padding: 11px 18px; font-size: 13px;
+    font-family: 'Noto Sans JP', sans-serif; font-weight: 500;
+    color: #94a3b8; text-decoration: none;
+    border-bottom: 3px solid transparent; margin-bottom: -2px;
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .nav-link:hover { color: #e2e8f0; background: rgba(255,255,255,0.04); }
+  .nav-link.active { color: #ffffff; border-bottom-color: var(--accent); }
+  .nav-icon {
+    width: 22px; height: 22px; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-family: 'DM Mono', monospace; font-weight: 600;
+  }
+  .nav-link.active .nav-icon { background: var(--accent); color: #fff; }
+  .nav-link:not(.active) .nav-icon { background: #1e293b; color: #64748b; }
+
+</style>
+</head>
+<body>
+
+<nav class="nav-bar">
+  <div class="nav-inner">
+    <span class="nav-label">ダッシュボード一覧</span>
+    <a href="index.html" class="nav-link">
+      <span class="nav-icon">粗利</span>
+      粗利分析ダッシュボード
+    </a>
+    <a href="3pl-pnl.html" class="nav-link active">
+      <span class="nav-icon">3PL</span>
+      3PL損益ダッシュボード
+    </a>
+  </div>
+</nav>
+
+<header>
+  <div class="container">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-mark">3PL</div>
+        <div>
+          <div class="logo-text">3PL損益ダッシュボード</div>
+          <div class="logo-sub">P&L ANALYTICS</div>
+        </div>
+      </div>
+      <div class="header-meta">
+        <div class="period-badge" id="periodBadge">2025.10 – 2026.3</div>
+        <div class="month-tabs" id="monthTabs"></div>
+        <button class="upload-btn" onclick="openModal()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          データ更新
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="container">
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <div class="section-header">
+      <span class="section-title">月次推移</span>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="card chart-wide">
+        <div class="card-title">
+          <span>取引先別 売上総利益 月次推移</span>
+          <span style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;">単位: 円</span>
+        </div>
+        <div class="chart-container tall"><canvas id="trendChart"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">取引先別 粗利構成（累計）</div>
+        <div class="chart-container"><canvas id="donutChart"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">取引先別 粗利率推移</div>
+        <div class="chart-container"><canvas id="marginChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="section-header">
+      <span class="section-title" id="tableTitle">月次詳細</span>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:28px;">
+      <div class="table-wrap">
+        <table id="detailTable"></table>
+      </div>
+    </div>
+
+    <div class="section-header">
+      <span class="section-title">ルート別内訳</span>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="card">
+        <div class="card-title" id="routeChartTitle">白銅 ルート別 売上高（選択月）</div>
+        <div class="chart-container"><canvas id="routeChart1"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title" id="routeChartTitle2">ムトウ ルート別 売上高（選択月）</div>
+        <div class="chart-container"><canvas id="routeChart2"></canvas></div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer>
+  <div class="container">
+    <span id="footerText">最終更新: — | データソース: 3PL損益xlsx</span>
+  </div>
+</footer>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-title">📊 データファイル更新</div>
+    <div class="modal-sub">3PL損益Excelファイル（.xlsx）をアップロードして<br>ダッシュボードを更新できます。</div>
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <div class="drop-icon">📁</div>
+      <div class="drop-text" id="dropText">クリックまたはドラッグ&ドロップ<br><span style="font-size:11px;color:#475569;">3PL損益_YYYY_MM_*.xlsx</span></div>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx" style="display:none" onchange="handleFile(this.files[0])">
+    <div class="status-msg" id="statusMsg"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+      <button class="btn-process" id="btnProcess" onclick="processFile()">更新する</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// =============================================
+// EMBEDDED DEFAULT DATA
+// =============================================
+const DEFAULT_DATA = {
+  "period": "2025.10 – 2026.3",
+  "updatedAt": "2026年3月",
+  "months": ["2025.10","2025.11","2025.12","2026.1","2026.2","2026.3"],
+  "monthly": {
+    "2025.10": {
+      "clients": {
+        "白銅": {"revenue":18836750,"cost":14715832,"gross":4120918,"margin":0.21877},
+        "ムトウユニパック": {"revenue":3921133,"cost":3487515,"gross":433618,"margin":0.110585},
+        "吉川紙商事": {"revenue":40526,"cost":33680,"gross":6846,"margin":0.168929},
+        "ナチュラジャパン": {"revenue":0,"cost":0,"gross":0,"margin":0}
+      },
+      "total": {"revenue":22798409,"cost":18237027,"gross":4561382,"margin":0.200075},
+      "routes": {
+        "白銅": {"東京配送":{"revenue":5000684,"cost":3903561,"gross":1097123},"神奈川配送":{"revenue":7368038,"cost":5317705,"gross":2050333},"千葉配送":{"revenue":1756583,"cost":1331121,"gross":425462},"静岡配送":{"revenue":1296918,"cost":1199918,"gross":97000},"福島幹線":{"revenue":1093527,"cost":1027527,"gross":66000},"埼玉工場幹線":{"revenue":2321000,"cost":1936000,"gross":385000}},
+        "ムトウユニパック": {"栃木_第一貨物":{"revenue":2080100,"cost":1854150,"gross":225950},"栃木_名鉄運輸":{"revenue":307330,"cost":257210,"gross":50120},"栃木_鹿沼梱包":{"revenue":221100,"cost":200835,"gross":20265},"栃木_新潟運輸":{"revenue":256207,"cost":213500,"gross":42707},"東京_常用":{"revenue":508400,"cost":497400,"gross":11000},"東京_路線":{"revenue":350036,"cost":307800,"gross":42236},"埼玉_路線":{"revenue":197960,"cost":156620,"gross":41340}}
+      }
+    },
+    "2025.11": {
+      "clients": {
+        "白銅": {"revenue":15760011,"cost":12212327,"gross":3547684,"margin":0.225107},
+        "ムトウユニパック": {"revenue":2827806,"cost":2504145,"gross":323661,"margin":0.114457},
+        "吉川紙商事": {"revenue":55040,"cost":38380,"gross":16660,"margin":0.302689},
+        "ナチュラジャパン": {"revenue":0,"cost":0,"gross":0,"margin":0}
+      },
+      "total": {"revenue":18642857,"cost":14754852,"gross":3888005,"margin":0.208552},
+      "routes": {
+        "白銅": {"東京配送":{"revenue":3976085,"cost":3091827,"gross":884258},"神奈川配送":{"revenue":6134502,"cost":4326837,"gross":1807665},"千葉配送":{"revenue":1610169,"cost":1223908,"gross":386261},"静岡配送":{"revenue":1135582,"cost":1049082,"gross":86500},"福島幹線":{"revenue":1004673,"cost":936673,"gross":68000},"埼玉工場幹線":{"revenue":1899000,"cost":1584000,"gross":315000}},
+        "ムトウユニパック": {"栃木_第一貨物":{"revenue":1280240,"cost":1137780,"gross":142460},"栃木_名鉄運輸":{"revenue":291840,"cost":241120,"gross":50720},"栃木_鹿沼梱包":{"revenue":162500,"cost":147536,"gross":14964},"栃木_新潟運輸":{"revenue":237515,"cost":197930,"gross":39585},"東京_常用":{"revenue":416409,"cost":407409,"gross":9000},"東京_路線":{"revenue":241422,"cost":215260,"gross":26162},"埼玉_路線":{"revenue":197880,"cost":157110,"gross":40770}}
+      }
+    },
+    "2025.12": {
+      "clients": {
+        "白銅": {"revenue":17237936,"cost":13340616,"gross":3897320,"margin":0.22609},
+        "ムトウユニパック": {"revenue":3193951,"cost":2813155,"gross":380796,"margin":0.119224},
+        "吉川紙商事": {"revenue":47390,"cost":36795,"gross":10595,"margin":0.22357},
+        "ナチュラジャパン": {"revenue":0,"cost":0,"gross":0,"margin":0}
+      },
+      "total": {"revenue":20479277,"cost":16190566,"gross":4288711,"margin":0.209417},
+      "routes": {
+        "白銅": {"東京配送":{"revenue":4237864,"cost":3461219,"gross":776645},"神奈川配送":{"revenue":7064660,"cost":4843173,"gross":2221487},"千葉配送":{"revenue":1657075,"cost":1252387,"gross":404688},"静岡配送":{"revenue":1135773,"cost":1049273,"gross":86500},"福島幹線":{"revenue":1032564,"cost":974564,"gross":58000},"埼玉工場幹線":{"revenue":2110000,"cost":1760000,"gross":350000}},
+        "ムトウユニパック": {"栃木_第一貨物":{"revenue":1295280,"cost":1144910,"gross":150370},"栃木_名鉄運輸":{"revenue":487320,"cost":401007,"gross":86313},"栃木_鹿沼梱包":{"revenue":197700,"cost":179565,"gross":18135},"栃木_新潟運輸":{"revenue":328320,"cost":273600,"gross":54720},"東京_常用":{"revenue":439173,"cost":429673,"gross":9500},"東京_路線":{"revenue":308198,"cost":274840,"gross":33358},"埼玉_路線":{"revenue":137960,"cost":109560,"gross":28400}}
+      }
+    },
+    "2026.1": {
+      "clients": {
+        "白銅": {"revenue":16538482,"cost":12971544,"gross":3566938,"margin":0.215675},
+        "ムトウユニパック": {"revenue":3944947,"cost":3499253,"gross":445694,"margin":0.112978},
+        "吉川紙商事": {"revenue":45272,"cost":32130,"gross":13142,"margin":0.29029},
+        "ナチュラジャパン": {"revenue":0,"cost":0,"gross":0,"margin":0}
+      },
+      "total": {"revenue":20528701,"cost":16502927,"gross":4025774,"margin":0.196105},
+      "routes": {
+        "白銅": {"東京配送":{"revenue":4028261,"cost":3306803,"gross":721458},"神奈川配送":{"revenue":6717041,"cost":4778885,"gross":1938156},"千葉配送":{"revenue":1630044,"cost":1202220,"gross":427824},"静岡配送":{"revenue":1165036,"cost":1080036,"gross":85000},"福島幹線":{"revenue":993600,"cost":931600,"gross":62000},"埼玉工場幹線":{"revenue":2004500,"cost":1672000,"gross":332500}},
+        "ムトウユニパック": {"栃木_第一貨物":{"revenue":2289890,"cost":2036360,"gross":253530},"栃木_名鉄運輸":{"revenue":399020,"cost":322827,"gross":76193},"栃木_鹿沼梱包":{"revenue":172500,"cost":156721,"gross":15779},"栃木_新潟運輸":{"revenue":233867,"cost":194890,"gross":38977},"東京_常用":{"revenue":439345,"cost":429845,"gross":9500},"東京_路線":{"revenue":291685,"cost":257530,"gross":34155},"埼玉_路線":{"revenue":118640,"cost":101080,"gross":17560}}
+      }
+    },
+    "2026.2": {
+      "clients": {
+        "白銅": {"revenue":15679649,"cost":12297452,"gross":3382197,"margin":0.215706},
+        "ムトウユニパック": {"revenue":3844412,"cost":3417681,"gross":426731,"margin":0.111},
+        "吉川紙商事": {"revenue":51853,"cost":49924,"gross":1929,"margin":0.037201},
+        "ナチュラジャパン": {"revenue":0,"cost":0,"gross":0,"margin":0}
+      },
+      "total": {"revenue":19575914,"cost":15765057,"gross":3810857,"margin":0.194671},
+      "routes": {
+        "白銅": {"東京配送":{"revenue":4001883,"cost":3255757,"gross":746126},"神奈川配送":{"revenue":6260576,"cost":4469905,"gross":1790671},"千葉配送":{"revenue":1462399,"cost":1080000,"gross":382399},"静岡配送":{"revenue":1106845,"cost":1018845,"gross":88000},"福島幹線":{"revenue":948946,"cost":888945,"gross":60001},"埼玉工場幹線":{"revenue":1899000,"cost":1584000,"gross":315000}},
+        "ムトウユニパック": {"栃木_第一貨物":{"revenue":2331930,"cost":2073920,"gross":258010},"栃木_名鉄運輸":{"revenue":379570,"cost":315415,"gross":64155},"栃木_鹿沼梱包":{"revenue":180500,"cost":163861,"gross":16639},"栃木_新潟運輸":{"revenue":209724,"cost":174770,"gross":34954},"東京_常用":{"revenue":417355,"cost":408355,"gross":9000},"東京_路線":{"revenue":215383,"cost":191300,"gross":24083},"埼玉_路線":{"revenue":109950,"cost":90060,"gross":19890}}
+      }
+    },
+    "2026.3": {
+      "clients": {
+        "白銅": {"revenue":18376584,"cost":14490401,"gross":3886183,"margin":0.211475},
+        "ムトウユニパック": {"revenue":4632902,"cost":4105497,"gross":527405,"margin":0.113839},
+        "吉川紙商事": {"revenue":60210,"cost":43430,"gross":16780,"margin":0.278691},
+        "ナチュラジャパン": {"revenue":0,"cost":0,"gross":0,"margin":0}
+      },
+      "total": {"revenue":23069696,"cost":18639328,"gross":4430368,"margin":0.192043},
+      "routes": {
+        "白銅": {"東京配送":{"revenue":4878510,"cost":3794213,"gross":1084297},"神奈川配送":{"revenue":7136173,"cost":5394294,"gross":1741879},"千葉配送":{"revenue":1848647,"cost":1325706,"gross":522941},"静岡配送":{"revenue":1215227,"cost":1105661,"gross":109566},"福島幹線":{"revenue":1082527,"cost":1022527,"gross":60000},"埼玉工場幹線":{"revenue":2215500,"cost":1848000,"gross":367500}},
+        "ムトウユニパック": {"栃木_第一貨物":{"revenue":2652345,"cost":2364470,"gross":287875},"栃木_名鉄運輸":{"revenue":548640,"cost":448736,"gross":99904},"栃木_鹿沼梱包":{"revenue":211800,"cost":192395,"gross":19405},"栃木_新潟運輸":{"revenue":289500,"cost":241660,"gross":47840},"東京_常用":{"revenue":486336,"cost":475836,"gross":10500},"東京_路線":{"revenue":280421,"cost":246600,"gross":33821},"埼玉_路線":{"revenue":163860,"cost":135800,"gross":28060}}
+      }
+    }
+  }
+};
+
+// =============================================
+// STATE
+// =============================================
+let currentData = JSON.parse(JSON.stringify(DEFAULT_DATA));
+let selectedMonth = null;
+let charts = {};
+let pendingFile = null;
+
+const CLIENTS = ['白銅','ムトウユニパック','吉川紙商事','ナチュラジャパン'];
+const CLIENT_COLORS = {
+  '白銅':       { solid: 'rgba(14,168,138,0.8)',  faint: 'rgba(14,168,138,0.2)',  line: '#0ea88a' },
+  'ムトウユニパック': { solid: 'rgba(37,99,235,0.8)',  faint: 'rgba(37,99,235,0.2)',  line: '#2563eb' },
+  '吉川紙商事':     { solid: 'rgba(217,119,6,0.8)',  faint: 'rgba(217,119,6,0.2)',  line: '#d97706' },
+  'ナチュラジャパン':  { solid: 'rgba(124,58,237,0.8)', faint: 'rgba(124,58,237,0.2)', line: '#7c3aed' },
+};
+const CLIENT_BADGE = {
+  '白銅': 'badge-shirako',
+  'ムトウユニパック': 'badge-mutou',
+  '吉川紙商事': 'badge-yoshikawa',
+  'ナチュラジャパン': 'badge-natura',
+};
+
+const fmt  = n => new Intl.NumberFormat('ja-JP').format(Math.round(n));
+const fmtM = n => (n * 100).toFixed(1) + '%';
+
+// =============================================
+// MONTH TABS
+// =============================================
+function renderTabs(data) {
+  const container = document.getElementById('monthTabs');
+  container.innerHTML = ['全期間', ...data.months].map(m => `
+    <button class="month-tab ${selectedMonth === m || (m === '全期間' && !selectedMonth) ? 'active' : ''}"
+      onclick="selectMonth('${m}')">${m}</button>
+  `).join('');
+}
+
+function selectMonth(m) {
+  selectedMonth = (m === '全期間') ? null : m;
+  renderAll(currentData);
+}
+
+// =============================================
+// KPI
+// =============================================
+function renderKPI(data) {
+  const months = data.months;
+  const monthly = data.monthly;
+
+  let totalRevenue = 0, totalCost = 0, totalGross = 0;
+  let bestMonth = null, bestGross = -Infinity;
+
+  months.forEach(m => {
+    const t = monthly[m].total;
+    totalRevenue += t.revenue;
+    totalCost    += t.cost;
+    totalGross   += t.gross;
+    if (t.gross > bestGross) { bestGross = t.gross; bestMonth = m; }
+  });
+
+  const avgMargin = totalGross / totalRevenue;
+
+  // MoM for last month
+  const last = months[months.length - 1];
+  const prev = months[months.length - 2];
+  const momDelta = last && prev ? monthly[last].total.gross - monthly[prev].total.gross : 0;
+
+  const kpis = [
+    { label: '累計 売上高', value: '¥' + fmt(totalRevenue), sub: `${months.length}ヶ月合計`, color: 'blue' },
+    { label: '累計 売上総利益', value: '¥' + fmt(totalGross), sub: `累計原価: ¥${fmt(totalCost)}`, color: 'green' },
+    { label: '平均粗利率', value: fmtM(avgMargin), sub: `全期間平均`, color: 'amber' },
+    {
+      label: '前月比 粗利（最終月）',
+      value: (momDelta >= 0 ? '+' : '') + '¥' + fmt(momDelta),
+      sub: `${prev} → ${last}`,
+      color: momDelta >= 0 ? 'green' : 'purple'
+    },
+  ];
+
+  document.getElementById('kpiGrid').innerHTML = kpis.map(k => `
+    <div class="kpi-card ${k.color}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value ${k.color === 'purple' && momDelta < 0 ? 'negative' : ''}">${k.value}</div>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>
+  `).join('');
+}
+
+// =============================================
+// CHARTS
+// =============================================
+function renderCharts(data) {
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+
+  const months = data.months;
+  const monthly = data.monthly;
+
+  // --- Trend Chart ---
+  const tCtx = document.getElementById('trendChart').getContext('2d');
+  charts.trend = new Chart(tCtx, {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: CLIENTS.filter(c => months.some(m => monthly[m].clients[c]?.gross > 0)).map(c => ({
+        label: c,
+        data: months.map(m => monthly[m].clients[c]?.gross || 0),
+        backgroundColor: CLIENT_COLORS[c].solid,
+        borderRadius: 4,
+        stack: 'gross',
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#475569', font: { family: 'DM Mono', size: 11 }, boxWidth: 12 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ¥${fmt(ctx.parsed.y)}` } }
+      },
+      scales: {
+        x: { stacked: true, ticks: { color: '#64748b' }, grid: { color: 'rgba(0,0,0,0.06)' } },
+        y: { stacked: true, ticks: { color: '#64748b', font: { family: 'DM Mono', size: 11 }, callback: v => '¥' + fmt(v) }, grid: { color: 'rgba(0,0,0,0.06)' } }
+      }
+    }
+  });
+
+  // --- Donut Chart ---
+  const totals = CLIENTS.map(c => months.reduce((a, m) => a + (monthly[m].clients[c]?.gross || 0), 0));
+  const dCtx = document.getElementById('donutChart').getContext('2d');
+  charts.donut = new Chart(dCtx, {
+    type: 'doughnut',
+    data: {
+      labels: CLIENTS,
+      datasets: [{
+        data: totals,
+        backgroundColor: CLIENTS.map(c => CLIENT_COLORS[c].solid),
+        borderColor: '#f5f7fa', borderWidth: 3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '65%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#475569', font: { family: 'Noto Sans JP', size: 11 }, padding: 12, boxWidth: 12 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ¥${fmt(ctx.parsed)}` } }
+      }
+    }
+  });
+
+  // --- Margin Line Chart ---
+  const mCtx = document.getElementById('marginChart').getContext('2d');
+  charts.margin = new Chart(mCtx, {
+    type: 'line',
+    data: {
+      labels: months,
+      datasets: ['白銅', 'ムトウユニパック'].map(c => ({
+        label: c,
+        data: months.map(m => +(monthly[m].clients[c]?.margin * 100 || 0).toFixed(2)),
+        borderColor: CLIENT_COLORS[c].line,
+        backgroundColor: CLIENT_COLORS[c].faint,
+        tension: 0.3, fill: false, pointRadius: 4,
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#475569', font: { family: 'DM Mono', size: 11 }, boxWidth: 12 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}%` } }
+      },
+      scales: {
+        x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(0,0,0,0.06)' } },
+        y: { ticks: { color: '#64748b', font: { family: 'DM Mono', size: 11 }, callback: v => v + '%' }, grid: { color: 'rgba(0,0,0,0.06)' } }
+      }
+    }
+  });
+
+  // --- Route Charts (selected month or last) ---
+  const targetMonth = selectedMonth || data.months[data.months.length - 1];
+  renderRouteCharts(data, targetMonth);
+}
+
+function renderRouteCharts(data, month) {
+  if (charts.route1) { charts.route1.destroy(); delete charts.route1; }
+  if (charts.route2) { charts.route2.destroy(); delete charts.route2; }
+
+  const routes1 = data.monthly[month]?.routes?.['白銅'] || {};
+  const routes2 = data.monthly[month]?.routes?.['ムトウユニパック'] || {};
+
+  document.getElementById('routeChartTitle').textContent = `白銅 ルート別 売上・原価・粗利（${month}）`;
+  document.getElementById('routeChartTitle2').textContent = `ムトウ ルート別 売上・原価・粗利（${month}）`;
+
+  const makeRouteChart = (ctxId, routes, color1, color2) => {
+    const labels = Object.keys(routes);
+    const ctx = document.getElementById(ctxId).getContext('2d');
+    return new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: '売上高', data: labels.map(r => routes[r].revenue), backgroundColor: color1, borderRadius: 3 },
+          { label: '原価', data: labels.map(r => routes[r].cost), backgroundColor: color2, borderRadius: 3 },
+          { label: '粗利', data: labels.map(r => routes[r].gross), backgroundColor: 'rgba(14,168,138,0.7)', borderRadius: 3 },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#475569', font: { family: 'DM Mono', size: 10 }, boxWidth: 10 } },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ¥${fmt(ctx.parsed.y)}` } }
+        },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 30 }, grid: { color: 'rgba(0,0,0,0.06)' } },
+          y: { ticks: { color: '#64748b', font: { family: 'DM Mono', size: 10 }, callback: v => '¥' + fmt(v) }, grid: { color: 'rgba(0,0,0,0.06)' } }
+        }
+      }
+    });
+  };
+
+  charts.route1 = makeRouteChart('routeChart1', routes1, 'rgba(14,168,138,0.5)', 'rgba(14,168,138,0.2)');
+  charts.route2 = makeRouteChart('routeChart2', routes2, 'rgba(37,99,235,0.5)', 'rgba(37,99,235,0.2)');
+}
+
+// =============================================
+// TABLE
+// =============================================
+function renderTable(data) {
+  const months = data.months;
+  const monthly = data.monthly;
+  const showMonths = selectedMonth ? [selectedMonth] : months;
+
+  document.getElementById('tableTitle').textContent =
+    selectedMonth ? `${selectedMonth} 詳細` : '全月 取引先別サマリー';
+
+  let html = `<table><thead><tr>
+    <th style="text-align:left;padding:14px 16px;">取引先</th>`;
+
+  if (selectedMonth) {
+    html += `<th>売上高</th><th>売上原価</th><th>売上総利益</th><th>粗利率</th>`;
+  } else {
+    showMonths.forEach(m => html += `<th colspan="2" style="text-align:center;border-left:1px solid var(--border)">${m}</th>`);
+  }
+  html += `</tr>`;
+
+  if (!selectedMonth) {
+    html += `<tr>`;
+    html += `<th></th>`;
+    showMonths.forEach(() => html += `<th>粗利</th><th>粗利率</th>`);
+    html += `</tr>`;
+  }
+
+  html += `</thead><tbody>`;
+
+  CLIENTS.forEach(c => {
+    if (!months.some(m => (monthly[m].clients[c]?.gross || 0) > 0)) return;
+    html += `<tr><td><span class="client-badge ${CLIENT_BADGE[c]}">${c.slice(0,2)}</span>${c}</td>`;
+
+    if (selectedMonth) {
+      const d = monthly[selectedMonth]?.clients[c] || {};
+      html += `<td>¥${fmt(d.revenue||0)}</td><td>¥${fmt(d.cost||0)}</td><td>¥${fmt(d.gross||0)}</td><td>${fmtM(d.margin||0)}</td>`;
+    } else {
+      showMonths.forEach(m => {
+        const d = monthly[m]?.clients[c] || {};
+        html += `<td style="border-left:1px solid var(--border)">¥${fmt(d.gross||0)}</td><td>${fmtM(d.margin||0)}</td>`;
+      });
+    }
+    html += `</tr>`;
+  });
+
+  // Total row
+  html += `<tr class="total"><td>合計</td>`;
+  if (selectedMonth) {
+    const t = monthly[selectedMonth].total;
+    html += `<td>¥${fmt(t.revenue)}</td><td>¥${fmt(t.cost)}</td><td>¥${fmt(t.gross)}</td><td>${fmtM(t.margin)}</td>`;
+  } else {
+    showMonths.forEach(m => {
+      const t = monthly[m].total;
+      html += `<td style="border-left:1px solid var(--border)">¥${fmt(t.gross)}</td><td>${fmtM(t.margin)}</td>`;
+    });
+  }
+  html += `</tr></tbody></table>`;
+
+  document.querySelector('.table-wrap').innerHTML = html;
+}
+
+// =============================================
+// FULL RENDER
+// =============================================
+function renderAll(data) {
+  document.getElementById('periodBadge').textContent = data.period;
+  document.getElementById('footerText').textContent = `最終更新: ${data.updatedAt} | データソース: 3PL損益xlsx`;
+  renderTabs(data);
+  renderKPI(data);
+  renderCharts(data);
+  renderTable(data);
+}
+
+// =============================================
+// XLSX PARSING
+// =============================================
+function parseXLSX(workbook) {
+  const months = workbook.SheetNames;
+  if (months.length === 0) throw new Error('シートが見つかりません');
+
+  const monthly = {};
+
+  months.forEach(sheetName => {
+    const ws = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: 0 });
+
+    const header = rows[0] || [];
+    // Find column indices for each client's total (col labeled '合計')
+    // Structure: col 0=税抜き, col 1=補助科目, then client columns ending with 合計
+
+    const n = (v) => { const x = parseFloat(v); return isNaN(x) ? 0 : x; };
+
+    const revenueRow = rows.find(r => r[0] === '売上高合計') || [];
+    const costRow    = rows.find(r => r[0] === '売上原価合計') || [];
+    const grossRow   = rows.find(r => r[0] === '売上総利益') || [];
+    const marginRow  = rows.find(r => r[0] === '利益率') || [];
+
+    // Find 合計 columns per client block
+    const totalCols = [];
+    header.forEach((h, i) => { if (String(h).trim() === '合計') totalCols.push(i); });
+
+    const clients = {};
+    // Map client names from row 1-3 (補助科目 column = col 1)
+    const clientNames = [];
+    for (let i = 1; i <= 4; i++) {
+      const name = String(rows[i]?.[1] || '').trim();
+      if (name) clientNames.push(name);
+    }
+
+    totalCols.forEach((col, idx) => {
+      if (idx < clientNames.length) {
+        const name = clientNames[idx];
+        clients[name] = {
+          revenue: n(revenueRow[col]),
+          cost:    n(costRow[col]),
+          gross:   n(grossRow[col]),
+          margin:  n(marginRow[col]),
+        };
+      }
+    });
+
+    const lastCol = totalCols[totalCols.length - 1];
+    const total = {
+      revenue: n(revenueRow[lastCol]),
+      cost:    n(costRow[lastCol]),
+      gross:   n(grossRow[lastCol]),
+      margin:  n(marginRow[lastCol]),
+    };
+
+    // Routes for 白銅 and ムトウ
+    const routes = {};
+    const clientBlocks = [
+      { name: '白銅', startCol: 2 },
+      { name: 'ムトウユニパック', startCol: 9 },
+    ];
+
+    clientBlocks.forEach(block => {
+      const blockHeader = header.slice(block.startCol);
+      const routeNames = blockHeader.filter(h => h && String(h).trim() !== '合計' && String(h).trim() !== '').map(h => String(h).trim().replace(/\s+/g, '_'));
+      routes[block.name] = {};
+      let routeIdx = 0;
+      for (let col = block.startCol; col < header.length; col++) {
+        const h = String(header[col] || '').trim();
+        if (!h || h === '合計') continue;
+        const routeKey = h.replace(/\s+/g, '_');
+        routes[block.name][routeKey] = {
+          revenue: n(revenueRow[col]),
+          cost:    n(costRow[col]),
+          gross:   n(grossRow[col]),
+        };
+        routeIdx++;
+        if (routeIdx >= 7) break; // max routes per client
+      }
+    });
+
+    monthly[sheetName] = { clients, total, routes };
+  });
+
+  const first = months[0];
+  const last  = months[months.length - 1];
+
+  return {
+    period: `${first} – ${last}`,
+    updatedAt: new Date().toLocaleDateString('ja-JP'),
+    months,
+    monthly,
+  };
+}
+
+// =============================================
+// MODAL
+// =============================================
+function openModal()  { document.getElementById('modalOverlay').classList.add('active'); }
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+  pendingFile = null;
+  document.getElementById('dropText').innerHTML = 'クリックまたはドラッグ&ドロップ<br><span style="font-size:11px;color:#475569;">3PL損益_YYYY_MM_*.xlsx</span>';
+  document.getElementById('btnProcess').style.display = 'none';
+  document.getElementById('statusMsg').style.display = 'none';
+}
+
+function handleFile(file) {
+  if (!file) return;
+  pendingFile = file;
+  document.getElementById('dropText').innerHTML = `📄 ${file.name}<br><span style="font-size:11px;color:#0ea88a;">ファイル選択済み</span>`;
+  document.getElementById('btnProcess').style.display = 'inline-block';
+}
+
+function processFile() {
+  if (!pendingFile) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const newData = parseXLSX(wb);
+      currentData = newData;
+      selectedMonth = null;
+      renderAll(newData);
+      showStatus('success', '✅ データを更新しました！');
+      setTimeout(closeModal, 1500);
+    } catch(err) {
+      showStatus('error', '❌ ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(pendingFile);
+}
+
+function showStatus(type, msg) {
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg; el.className = 'status-msg ' + type; el.style.display = 'block';
+}
+
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); });
+document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+// =============================================
+// INIT
+// =============================================
+renderAll(DEFAULT_DATA);
+</script>
+</body>
+</html>
