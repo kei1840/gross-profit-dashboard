@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>粗利分析ダッシュボード</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f7fa;
+    --surface: #ffffff;
+    --surface2: #eef2f7;
+    --border: #dde3ed;
+    --accent: #0ea88a;
+    --accent2: #2563eb;
+    --accent3: #d97706;
+    --danger: #dc2626;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --text-dim: #334155;
+    --positive: #059669;
+    --negative: #dc2626;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid bg */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(14,168,138,0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(14,168,138,0.06) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 0;
+    position: sticky;
+    top: 0;
+    background: rgba(245,247,250,0.95);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+  }
+
+  .header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-mark {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+    color: #ffffff;
+  }
+
+  .logo-text {
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+
+  .logo-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+    margin-top: 1px;
+  }
+
+  .header-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .period-badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+    color: var(--accent);
+  }
+
+  .upload-btn {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 7px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: 'Noto Sans JP', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .upload-btn:hover {
+    background: var(--accent);
+    color: #ffffff;
+  }
+
+  /* Main layout */
+  main {
+    padding: 32px 0 60px;
+  }
+
+  /* KPI row */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .kpi-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .kpi-card.green::after { background: var(--accent); }
+  .kpi-card.blue::after { background: var(--accent2); }
+  .kpi-card.amber::after { background: var(--accent3); }
+  .kpi-card.red::after { background: var(--danger); }
+
+  .kpi-card:hover { border-color: rgba(0,212,170,0.3); }
+
+  .kpi-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .kpi-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 26px;
+    font-weight: 500;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .kpi-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .delta-positive { color: var(--positive); }
+  .delta-negative { color: var(--negative); }
+
+  /* Section headers */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .section-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Chart section */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .chart-wide {
+    grid-column: 1 / -1;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  .card-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-dim);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .chart-container {
+    position: relative;
+    height: 260px;
+  }
+
+  .chart-container.tall {
+    height: 320px;
+  }
+
+  /* Table */
+  .table-section {
+    margin-bottom: 32px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  thead tr {
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    text-align: right;
+    padding: 10px 12px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+
+  th:first-child { text-align: left; }
+
+  tbody tr {
+    border-bottom: 1px solid rgba(221,227,237,0.8);
+    transition: background 0.15s;
+  }
+
+  tbody tr:hover { background: rgba(0,0,0,0.02); }
+
+  td {
+    padding: 11px 12px;
+    text-align: right;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  td:first-child {
+    text-align: left;
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  .category-label {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin-right: 6px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .cat-3pl { background: rgba(0,212,170,0.15); color: var(--accent); }
+  .cat-saas { background: rgba(59,130,246,0.15); color: var(--accent2); }
+  .cat-dev { background: rgba(245,158,11,0.15); color: var(--accent3); }
+  .cat-cons { background: rgba(168,85,247,0.15); color: #a855f7; }
+
+  tr.subtotal td {
+    font-weight: 500;
+    color: var(--text);
+    background: rgba(0,0,0,0.02);
+    border-top: 1px solid var(--border);
+  }
+
+  tr.total td {
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(14,168,138,0.06);
+    border-top: 2px solid rgba(14,168,138,0.3);
+  }
+
+  .positive { color: var(--positive) !important; }
+  .negative { color: var(--negative) !important; }
+
+  /* Commission section */
+  .commission-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .commission-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .commission-name {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 16px;
+    color: var(--text-dim);
+  }
+
+  .commission-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(30,45,69,0.6);
+  }
+
+  .commission-row:last-child { border-bottom: none; }
+
+  .commission-row-label {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .commission-row-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  /* Upload modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+
+  .modal-overlay.active { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    width: 480px;
+    max-width: 90vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  }
+
+  .modal-title {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+
+  .modal-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 16px;
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(0,212,170,0.05);
+  }
+
+  .drop-icon {
+    font-size: 32px;
+    margin-bottom: 10px;
+  }
+
+  .drop-text {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 16px;
+  }
+
+  .btn-cancel {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 8px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+
+  .btn-process {
+    background: var(--accent);
+    border: none;
+    color: #ffffff;
+    padding: 8px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: 'Noto Sans JP', sans-serif;
+    font-weight: 500;
+    display: none;
+  }
+
+  .status-msg {
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-top: 10px;
+    display: none;
+  }
+
+  .status-msg.success {
+    background: rgba(16,185,129,0.1);
+    color: var(--positive);
+    border: 1px solid rgba(16,185,129,0.3);
+  }
+
+  .status-msg.error {
+    background: rgba(239,68,68,0.1);
+    color: var(--negative);
+    border: 1px solid rgba(239,68,68,0.3);
+  }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 20px 0;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  @media (max-width: 900px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .charts-grid { grid-template-columns: 1fr; }
+    .chart-wide { grid-column: 1; }
+    .commission-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-mark">粗利</div>
+        <div>
+          <div class="logo-text">粗利分析ダッシュボード</div>
+          <div class="logo-sub">GROSS PROFIT ANALYTICS</div>
+        </div>
+      </div>
+      <div class="header-meta">
+        <div class="period-badge" id="periodBadge">2025 Q1・Q2</div>
+        <button class="upload-btn" onclick="openModal()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          データ更新
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="container">
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <!-- Section: Quarter Comparison -->
+    <div class="section-header">
+      <span class="section-title">四半期比較</span>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="card chart-wide">
+        <div class="card-title">
+          <span>部門別 粗利推移（前年同期比）</span>
+          <span style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;">単位: 円</span>
+        </div>
+        <div class="chart-container tall">
+          <canvas id="quarterChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">上半期 カテゴリ別 粗利構成（2025）</div>
+        <div class="chart-container">
+          <canvas id="donutChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">粗利率推移（部門別・2025）</div>
+        <div class="chart-container">
+          <canvas id="marginChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: Detail Table -->
+    <div class="section-header">
+      <span class="section-title">部門別 粗利詳細</span>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="table-section">
+      <div class="card" style="padding: 0; overflow: hidden;">
+        <div style="overflow-x:auto;">
+          <table id="detailTable"></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: Commission -->
+    <div class="section-header">
+      <span class="section-title">コミッション計算</span>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="commission-grid" id="commissionGrid"></div>
+
+  </div>
+</main>
+
+<footer>
+  <div class="container">
+    <span id="footerText">最終更新: — | データソース: 粗利分析xlsx</span>
+  </div>
+</footer>
+
+<!-- Upload Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-title">📊 データファイル更新</div>
+    <div class="modal-sub">毎月の粗利分析Excelファイル（.xlsx）をアップロードして<br>ダッシュボードを更新できます。</div>
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <div class="drop-icon">📁</div>
+      <div class="drop-text" id="dropText">クリックまたはドラッグ&ドロップ<br><span style="font-size:11px;color:#475569;">粗利分析_YYYYMM_*.xlsx</span></div>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx" style="display:none" onchange="handleFile(this.files[0])">
+    <div class="status-msg" id="statusMsg"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+      <button class="btn-process" id="btnProcess" onclick="processFile()">更新する</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// =============================================
+// EMBEDDED DEFAULT DATA (2025年度 Q1・Q2)
+// =============================================
+const DEFAULT_DATA = {
+  period: "2025 Q1・Q2",
+  updatedAt: "2025年3月",
+  summary: [
+    { dept: "白銅", category: "3PL", q1_2025: 11570002, q1_2024: 10550926, q2_2025: 10839398, q2_2024: 9607984 },
+    { dept: "ムトウユニパック", category: "3PL", q1_2025: 1138075, q1_2024: 1451712, q2_2025: 1399830, q2_2024: 1564289 },
+    { dept: "化研マテリアル", category: "3PL", q1_2025: 0, q1_2024: 167269, q2_2025: 0, q2_2024: 123849 },
+    { dept: "吉川紙商事", category: "3PL", q1_2025: 34101, q1_2024: 23594, q2_2025: 31886, q2_2024: 22700 },
+    { dept: "ナチュラジャパン", category: "3PL", q1_2025: 14861, q1_2024: 0, q2_2025: 16429, q2_2024: 0 },
+    { dept: "trackerr", category: "SaaS", q1_2025: 1113200, q1_2024: 864600, q2_2025: 1140000, q2_2024: 1203600 },
+    { dept: "配録", category: "SaaS", q1_2025: 495754, q1_2024: 1276460, q2_2025: 284122, q2_2024: 524400 },
+    { dept: "イツクルLOGI", category: "SaaS", q1_2025: 150000, q1_2024: 0, q2_2025: 430800, q2_2024: 0 },
+    { dept: "KURAud", category: "SaaS", q1_2025: 0, q1_2024: 0, q2_2025: 97000, q2_2024: 0 },
+    { dept: "HaKoPo", category: "SaaS", q1_2025: 0, q1_2024: 0, q2_2025: 0, q2_2024: 0 },
+    { dept: "受託開発", category: "受託開発", q1_2025: 443000, q1_2024: 3132000, q2_2025: 1049000, q2_2024: 228000 },
+    { dept: "コンサルティング（青和向け）", category: "コンサルティング", q1_2025: 180000, q1_2024: 0, q2_2025: 180000, q2_2024: 0 },
+  ],
+  detail: [
+    { category: "3PL", dept: "白銅", period: "2025 Q1", revenue: 51838777, cost: 40268775, gross: 11570002, margin: 0.2232, prev: 10550926 },
+    { category: "3PL", dept: "白銅", period: "2025 Q2", revenue: 50598795, cost: 39759397, gross: 10839398, margin: 0.2142, prev: 9607984 },
+    { category: "3PL", dept: "ムトウユニパック", period: "2025 Q1", revenue: 9942890, cost: 8804815, gross: 1138075, margin: 0.1145, prev: 1451712 },
+    { category: "3PL", dept: "ムトウユニパック", period: "2025 Q2", revenue: 12422261, cost: 11022431, gross: 1399830, margin: 0.1127, prev: 1564289 },
+    { category: "SaaS", dept: "trackerr", period: "2025 Q1", revenue: 1113200, cost: 0, gross: 1113200, margin: 1.0, prev: 864600 },
+    { category: "SaaS", dept: "trackerr", period: "2025 Q2", revenue: 1140000, cost: 0, gross: 1140000, margin: 1.0, prev: 1203600 },
+    { category: "SaaS", dept: "配録", period: "2025 Q1", revenue: 1397400, cost: 901646, gross: 495754, margin: 0.3548, prev: 1276460 },
+    { category: "SaaS", dept: "配録", period: "2025 Q2", revenue: 1144000, cost: 859878, gross: 284122, margin: 0.2484, prev: 524400 },
+    { category: "受託開発", dept: "受託開発", period: "2025 Q1", revenue: 1547000, cost: 1104000, gross: 443000, margin: 0.2864, prev: 3132000 },
+    { category: "受託開発", dept: "受託開発", period: "2025 Q2", revenue: 2621000, cost: 1572000, gross: 1049000, margin: 0.4002, prev: 228000 },
+    { category: "コンサルティング", dept: "コンサルティング（青和向け）", period: "2025 Q1", revenue: 180000, cost: 0, gross: 180000, margin: 1.0, prev: 0 },
+    { category: "コンサルティング", dept: "コンサルティング（青和向け）", period: "2025 Q2", revenue: 180000, cost: 0, gross: 180000, margin: 1.0, prev: 0 },
+  ],
+  commission: {
+    q1_gross_current: 15138993,
+    q2_gross_current: 15468465,
+    q1_gross_prev: 17466561,
+    q2_gross_prev: 13274822,
+    ooya_rate: 0.13,
+    sasaki_rate: 0.01,
+  }
+};
+
+// =============================================
+// STATE
+// =============================================
+let currentData = { ...DEFAULT_DATA };
+let charts = {};
+let pendingFile = null;
+
+// =============================================
+// FORMATTING
+// =============================================
+const fmt = n => new Intl.NumberFormat('ja-JP').format(Math.round(n));
+const fmtPct = n => (n * 100).toFixed(1) + '%';
+const fmtDelta = n => (n >= 0 ? '+' : '') + fmt(n);
+
+function deltaClass(v) {
+  if (v > 0) return 'positive';
+  if (v < 0) return 'negative';
+  return '';
+}
+
+// =============================================
+// RENDER KPI
+// =============================================
+function renderKPI(data) {
+  const s = data.summary;
+  const h1_2025 = s.reduce((a, r) => a + r.q1_2025 + r.q2_2025, 0);
+  const h1_2024 = s.reduce((a, r) => a + r.q1_2024 + r.q2_2024, 0);
+  const h1_delta = h1_2025 - h1_2024;
+  const h1_rate = h1_2024 > 0 ? (h1_delta / h1_2024) : null;
+
+  const q1_2025 = s.reduce((a, r) => a + r.q1_2025, 0);
+  const q1_2024 = s.reduce((a, r) => a + r.q1_2024, 0);
+  const q2_2025 = s.reduce((a, r) => a + r.q2_2025, 0);
+  const q2_2024 = s.reduce((a, r) => a + r.q2_2024, 0);
+
+  const pl = (n) => n >= 0 ? 'positive' : 'negative';
+
+  const kpis = [
+    {
+      label: '上半期 粗利合計 (2025)',
+      value: '¥' + fmt(h1_2025),
+      sub: `前年比 <span class="${pl(h1_delta)}">${fmtDelta(h1_delta)}</span>`,
+      color: 'green'
+    },
+    {
+      label: 'Q1 粗利合計 (2025)',
+      value: '¥' + fmt(q1_2025),
+      sub: `前年比 <span class="${pl(q1_2025-q1_2024)}">${fmtDelta(q1_2025-q1_2024)}</span>`,
+      color: 'blue'
+    },
+    {
+      label: 'Q2 粗利合計 (2025)',
+      value: '¥' + fmt(q2_2025),
+      sub: `前年比 <span class="${pl(q2_2025-q2_2024)}">${fmtDelta(q2_2025-q2_2024)}</span>`,
+      color: 'amber'
+    },
+    {
+      label: '前年増減率 (H1)',
+      value: h1_rate !== null ? (h1_rate >= 0 ? '+' : '') + (h1_rate * 100).toFixed(2) + '%' : '—',
+      sub: `前年: ¥${fmt(h1_2024)}`,
+      color: h1_delta >= 0 ? 'green' : 'red'
+    },
+  ];
+
+  document.getElementById('kpiGrid').innerHTML = kpis.map(k => `
+    <div class="kpi-card ${k.color}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value">${k.value}</div>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>
+  `).join('');
+}
+
+// =============================================
+// RENDER CHARTS
+// =============================================
+function renderCharts(data) {
+  // Destroy existing
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+
+  const COLORS = {
+    '3PL': '#00d4aa',
+    'SaaS': '#3b82f6',
+    '受託開発': '#f59e0b',
+    'コンサルティング': '#a855f7',
+  };
+
+  // --- Quarter Comparison Bar Chart ---
+  const cats = ['3PL', 'SaaS', '受託開発', 'コンサルティング'];
+  const catTotals = (quarter, year) => {
+    const key_curr = `${quarter.toLowerCase()}_${year}`;
+    return cats.map(cat => {
+      return data.summary.filter(r => {
+        if (cat === 'SaaS') return r.category === 'SaaS';
+        if (cat === '受託開発') return r.category === '受託開発';
+        if (cat === 'コンサルティング') return r.category === 'コンサルティング';
+        return r.category === '3PL';
+      }).reduce((a, r) => a + (r[key_curr] || 0), 0);
+    });
+  };
+
+  const q1_25 = catTotals('q1', '2025');
+  const q1_24 = catTotals('q1', '2024');
+  const q2_25 = catTotals('q2', '2025');
+  const q2_24 = catTotals('q2', '2024');
+
+  const qCtx = document.getElementById('quarterChart').getContext('2d');
+  charts.quarter = new Chart(qCtx, {
+    type: 'bar',
+    data: {
+      labels: cats,
+      datasets: [
+        { label: 'Q1 2025', data: q1_25, backgroundColor: 'rgba(0,212,170,0.8)', borderRadius: 4 },
+        { label: 'Q1 2024', data: q1_24, backgroundColor: 'rgba(0,212,170,0.25)', borderRadius: 4 },
+        { label: 'Q2 2025', data: q2_25, backgroundColor: 'rgba(59,130,246,0.8)', borderRadius: 4 },
+        { label: 'Q2 2024', data: q2_24, backgroundColor: 'rgba(59,130,246,0.25)', borderRadius: 4 },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#475569', font: { family: 'DM Mono', size: 11 }, boxWidth: 12 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ¥${fmt(ctx.parsed.y)}`
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { family: 'Noto Sans JP', size: 12 } }, grid: { color: 'rgba(0,0,0,0.06)' } },
+        y: {
+          ticks: { color: '#64748b', font: { family: 'DM Mono', size: 11 }, callback: v => '¥' + fmt(v) },
+          grid: { color: 'rgba(0,0,0,0.06)' }
+        }
+      }
+    }
+  });
+
+  // --- Donut Chart ---
+  const h1_cats = cats.map(cat =>
+    data.summary.filter(r => {
+      if (cat === 'SaaS') return r.category === 'SaaS';
+      if (cat === '受託開発') return r.category === '受託開発';
+      if (cat === 'コンサルティング') return r.category === 'コンサルティング';
+      return r.category === '3PL';
+    }).reduce((a, r) => a + r.q1_2025 + r.q2_2025, 0)
+  );
+
+  const dCtx = document.getElementById('donutChart').getContext('2d');
+  charts.donut = new Chart(dCtx, {
+    type: 'doughnut',
+    data: {
+      labels: cats,
+      datasets: [{
+        data: h1_cats,
+        backgroundColor: ['rgba(0,212,170,0.8)', 'rgba(59,130,246,0.8)', 'rgba(245,158,11,0.8)', 'rgba(168,85,247,0.8)'],
+        borderColor: '#f5f7fa',
+        borderWidth: 3,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#475569', font: { family: 'Noto Sans JP', size: 11 }, padding: 12, boxWidth: 12 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ¥${fmt(ctx.parsed)}` } }
+      }
+    }
+  });
+
+  // --- Margin Line Chart ---
+  const marginDepts = ['白銅', 'ムトウユニパック', 'trackerr', '配録', '受託開発'];
+  const mColors = ['#00d4aa', '#0891b2', '#3b82f6', '#6366f1', '#f59e0b'];
+
+  const mCtx = document.getElementById('marginChart').getContext('2d');
+  charts.margin = new Chart(mCtx, {
+    type: 'bar',
+    data: {
+      labels: ['Q1 2025', 'Q2 2025'],
+      datasets: marginDepts.map((dept, i) => {
+        const rows = data.detail.filter(r => r.dept === dept);
+        return {
+          label: dept,
+          data: ['2025 Q1', '2025 Q2'].map(p => {
+            const r = rows.find(x => x.period === p);
+            return r ? +(r.margin * 100).toFixed(1) : 0;
+          }),
+          backgroundColor: mColors[i] + 'cc',
+          borderRadius: 4,
+        };
+      })
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#475569', font: { family: 'DM Mono', size: 10 }, boxWidth: 10 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}%` } }
+      },
+      scales: {
+        x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(0,0,0,0.06)' } },
+        y: {
+          ticks: { color: '#64748b', font: { family: 'DM Mono', size: 11 }, callback: v => v + '%' },
+          grid: { color: 'rgba(0,0,0,0.06)' }
+        }
+      }
+    }
+  });
+}
+
+// =============================================
+// RENDER TABLE
+// =============================================
+function renderTable(data) {
+  const catClass = { '3PL': 'cat-3pl', 'SaaS': 'cat-saas', '受託開発': 'cat-dev', 'コンサルティング': 'cat-cons' };
+  const catLabel = { '3PL': '3PL', 'SaaS': 'SaaS', '受託開発': 'DEV', 'コンサルティング': 'CONS' };
+
+  let html = `
+    <table>
+    <thead><tr>
+      <th style="text-align:left;padding:14px 16px;">部門</th>
+      <th>Q1 2025 粗利</th>
+      <th>Q1 2024 粗利</th>
+      <th>Q1 前年差</th>
+      <th>Q1 増減率</th>
+      <th>Q2 2025 粗利</th>
+      <th>Q2 2024 粗利</th>
+      <th>Q2 前年差</th>
+      <th>Q2 増減率</th>
+    </tr></thead>
+    <tbody>
+  `;
+
+  const categories = ['3PL', 'SaaS', '受託開発', 'コンサルティング'];
+
+  categories.forEach(cat => {
+    const rows = data.summary.filter(r => r.category === cat);
+    if (rows.length === 0) return;
+
+    rows.forEach(r => {
+      const q1d = r.q1_2025 - r.q1_2024;
+      const q2d = r.q2_2025 - r.q2_2024;
+      const q1r = r.q1_2024 > 0 ? q1d / r.q1_2024 : null;
+      const q2r = r.q2_2024 > 0 ? q2d / r.q2_2024 : null;
+
+      html += `<tr>
+        <td><span class="category-label ${catClass[cat]}">${catLabel[cat]}</span>${r.dept}</td>
+        <td>¥${fmt(r.q1_2025)}</td>
+        <td style="color:var(--text-muted)">¥${fmt(r.q1_2024)}</td>
+        <td class="${deltaClass(q1d)}">${fmtDelta(q1d)}</td>
+        <td class="${deltaClass(q1d)}">${q1r !== null ? (q1r >= 0 ? '+' : '') + (q1r * 100).toFixed(1) + '%' : '—'}</td>
+        <td>¥${fmt(r.q2_2025)}</td>
+        <td style="color:var(--text-muted)">¥${fmt(r.q2_2024)}</td>
+        <td class="${deltaClass(q2d)}">${fmtDelta(q2d)}</td>
+        <td class="${deltaClass(q2d)}">${q2r !== null ? (q2r >= 0 ? '+' : '') + (q2r * 100).toFixed(1) + '%' : '—'}</td>
+      </tr>`;
+    });
+
+    // Subtotal
+    const sub_q1_25 = rows.reduce((a, r) => a + r.q1_2025, 0);
+    const sub_q1_24 = rows.reduce((a, r) => a + r.q1_2024, 0);
+    const sub_q2_25 = rows.reduce((a, r) => a + r.q2_2025, 0);
+    const sub_q2_24 = rows.reduce((a, r) => a + r.q2_2024, 0);
+    const sd1 = sub_q1_25 - sub_q1_24;
+    const sd2 = sub_q2_25 - sub_q2_24;
+
+    html += `<tr class="subtotal">
+      <td style="padding-left:20px;">${cat} 小計</td>
+      <td>¥${fmt(sub_q1_25)}</td>
+      <td style="color:var(--text-muted)">¥${fmt(sub_q1_24)}</td>
+      <td class="${deltaClass(sd1)}">${fmtDelta(sd1)}</td>
+      <td class="${deltaClass(sd1)}">${sub_q1_24 > 0 ? (sd1 >= 0 ? '+' : '') + (sd1/sub_q1_24*100).toFixed(1) + '%' : '—'}</td>
+      <td>¥${fmt(sub_q2_25)}</td>
+      <td style="color:var(--text-muted)">¥${fmt(sub_q2_24)}</td>
+      <td class="${deltaClass(sd2)}">${fmtDelta(sd2)}</td>
+      <td class="${deltaClass(sd2)}">${sub_q2_24 > 0 ? (sd2 >= 0 ? '+' : '') + (sd2/sub_q2_24*100).toFixed(1) + '%' : '—'}</td>
+    </tr>`;
+  });
+
+  // Grand Total
+  const total_q1_25 = data.summary.reduce((a, r) => a + r.q1_2025, 0);
+  const total_q1_24 = data.summary.reduce((a, r) => a + r.q1_2024, 0);
+  const total_q2_25 = data.summary.reduce((a, r) => a + r.q2_2025, 0);
+  const total_q2_24 = data.summary.reduce((a, r) => a + r.q2_2024, 0);
+  const td1 = total_q1_25 - total_q1_24;
+  const td2 = total_q2_25 - total_q2_24;
+
+  html += `<tr class="total">
+    <td>全部門 合計</td>
+    <td>¥${fmt(total_q1_25)}</td>
+    <td>¥${fmt(total_q1_24)}</td>
+    <td class="${deltaClass(td1)}">${fmtDelta(td1)}</td>
+    <td class="${deltaClass(td1)}">${total_q1_24 > 0 ? (td1 >= 0 ? '+' : '') + (td1/total_q1_24*100).toFixed(1) + '%' : '—'}</td>
+    <td>¥${fmt(total_q2_25)}</td>
+    <td>¥${fmt(total_q2_24)}</td>
+    <td class="${deltaClass(td2)}">${fmtDelta(td2)}</td>
+    <td class="${deltaClass(td2)}">${total_q2_24 > 0 ? (td2 >= 0 ? '+' : '') + (td2/total_q2_24*100).toFixed(1) + '%' : '—'}</td>
+  </tr>`;
+
+  html += '</tbody></table>';
+  document.getElementById('detailTable').outerHTML = html;
+}
+
+// =============================================
+// RENDER COMMISSION
+// =============================================
+function renderCommission(data) {
+  const c = data.commission;
+  const q1_inc = c.q1_gross_current - c.q1_gross_prev;
+  const q2_inc = c.q2_gross_current - c.q2_gross_prev;
+
+  const ooya_q1 = Math.max(0, q1_inc * c.ooya_rate);
+  const ooya_q2 = Math.max(0, q2_inc * c.ooya_rate);
+  const sasaki_q1 = c.q1_gross_current * c.sasaki_rate;
+  const sasaki_q2 = c.q2_gross_current * c.sasaki_rate;
+
+  document.getElementById('commissionGrid').innerHTML = `
+    <div class="commission-card">
+      <div class="commission-name">🏠 大家さん コミッション（粗利前年増分 × ${(c.ooya_rate*100)}%）</div>
+      <div class="commission-row">
+        <span class="commission-row-label">Q1 前年差（粗利）</span>
+        <span class="commission-row-value ${deltaClass(q1_inc)}">${fmtDelta(q1_inc)}</span>
+      </div>
+      <div class="commission-row">
+        <span class="commission-row-label">Q1 コミッション</span>
+        <span class="commission-row-value">¥${fmt(ooya_q1)}</span>
+      </div>
+      <div class="commission-row">
+        <span class="commission-row-label">Q2 前年差（粗利）</span>
+        <span class="commission-row-value ${deltaClass(q2_inc)}">${fmtDelta(q2_inc)}</span>
+      </div>
+      <div class="commission-row">
+        <span class="commission-row-label">Q2 コミッション</span>
+        <span class="commission-row-value">¥${fmt(ooya_q2)}</span>
+      </div>
+    </div>
+    <div class="commission-card">
+      <div class="commission-name">👤 佐々木さん コミッション（粗利合計 × ${(c.sasaki_rate*100)}%）</div>
+      <div class="commission-row">
+        <span class="commission-row-label">Q1 粗利合計</span>
+        <span class="commission-row-value">¥${fmt(c.q1_gross_current)}</span>
+      </div>
+      <div class="commission-row">
+        <span class="commission-row-label">Q1 コミッション</span>
+        <span class="commission-row-value">¥${fmt(sasaki_q1)}</span>
+      </div>
+      <div class="commission-row">
+        <span class="commission-row-label">Q2 粗利合計</span>
+        <span class="commission-row-value">¥${fmt(c.q2_gross_current)}</span>
+      </div>
+      <div class="commission-row">
+        <span class="commission-row-label">Q2 コミッション</span>
+        <span class="commission-row-value">¥${fmt(sasaki_q2)}</span>
+      </div>
+    </div>
+  `;
+}
+
+// =============================================
+// FULL RENDER
+// =============================================
+function renderAll(data) {
+  document.getElementById('periodBadge').textContent = data.period;
+  document.getElementById('footerText').textContent =
+    `最終更新: ${data.updatedAt} | データソース: 粗利分析xlsx`;
+  renderKPI(data);
+  renderCharts(data);
+  renderTable(data);
+  renderCommission(data);
+}
+
+// =============================================
+// XLSX PARSING
+// =============================================
+function parseXLSX(workbook) {
+  const summarySheet = workbook.Sheets['粗利分析サマリー'];
+  const detailSheet = workbook.Sheets['部門別明細'];
+
+  if (!summarySheet || !detailSheet) {
+    throw new Error('シート「粗利分析サマリー」と「部門別明細」が見つかりません');
+  }
+
+  const summaryRows = XLSX.utils.sheet_to_json(summarySheet, { header: 1, defval: null });
+  const detailRows = XLSX.utils.sheet_to_json(detailSheet, { header: 1, defval: null });
+
+  // Parse summary (rows 5-23 approx)
+  const catMap = {
+    '3PL': '3PL',
+    'SaaS': 'SaaS',
+    '受託開発': '受託開発',
+    'コンサルティング（青和向け）': 'コンサルティング',
+  };
+
+  const summary = [];
+  const skipDepts = ['【3PL】','【ソフトウェア】','SaaS','受託開発','【コンサルティング】','3PL 小計','SaaS 小計','ソフトウェア 小計','全部門 合計'];
+  const deptCatMap = {
+    '白銅': '3PL', 'ムトウユニパック': '3PL', '化研マテリアル': '3PL', '吉川紙商事': '3PL', 'ナチュラジャパン': '3PL',
+    'trackerr': 'SaaS', '配録': 'SaaS', 'イツクルLOGI': 'SaaS', 'KURAud': 'SaaS', 'HaKoPo': 'SaaS',
+    '受託開発': '受託開発',
+    'コンサルティング（青和向け）': 'コンサルティング',
+  };
+
+  for (let i = 4; i < summaryRows.length; i++) {
+    const r = summaryRows[i];
+    if (!r || !r[0]) continue;
+    const dept = String(r[0]).trim();
+    if (skipDepts.includes(dept)) continue;
+    if (dept === 'カテゴリ') break;
+    const cat = deptCatMap[dept];
+    if (!cat) continue;
+
+    summary.push({
+      dept,
+      category: cat,
+      q1_2025: Number(r[1]) || 0,
+      q1_2024: Number(r[2]) || 0,
+      q2_2025: Number(r[5]) || 0,
+      q2_2024: Number(r[6]) || 0,
+    });
+  }
+
+  // Parse detail
+  const detail = [];
+  for (let i = 3; i < detailRows.length; i++) {
+    const r = detailRows[i];
+    if (!r || !r[0]) continue;
+    const period = String(r[2] || '').trim();
+    if (!period.startsWith('2025')) continue;
+    detail.push({
+      category: String(r[0]).trim(),
+      dept: String(r[1]).trim(),
+      period,
+      revenue: Number(r[3]) || 0,
+      cost: Number(r[4]) || 0,
+      gross: Number(r[5]) || 0,
+      margin: Number(r[6]) || 0,
+      prev: Number(r[7]) || 0,
+    });
+  }
+
+  // Commission from rows 38-43
+  let q1c = 0, q2c = 0, q1p = 0, q2p = 0;
+  for (let i = 35; i < summaryRows.length; i++) {
+    const r = summaryRows[i];
+    if (!r || !r[0]) continue;
+    const label = String(r[0]).trim();
+    if (label === '対象粗利（今期）') { q1c = Number(r[1])||0; q2c = Number(r[2])||0; }
+    if (label === '対象粗利（前年）') { q1p = Number(r[1])||0; q2p = Number(r[2])||0; }
+  }
+
+  // Extract period from filename-like info in title row
+  const titleRow = summaryRows[0]?.[0] || '';
+  const periodMatch = titleRow.match(/(\d{4})年度/);
+  const year = periodMatch ? periodMatch[1] : '2025';
+
+  return {
+    period: `${year} Q1・Q2`,
+    updatedAt: new Date().toLocaleDateString('ja-JP'),
+    summary,
+    detail,
+    commission: {
+      q1_gross_current: q1c || summary.reduce((a,r) => a+r.q1_2025, 0),
+      q2_gross_current: q2c || summary.reduce((a,r) => a+r.q2_2025, 0),
+      q1_gross_prev: q1p || summary.reduce((a,r) => a+r.q1_2024, 0),
+      q2_gross_prev: q2p || summary.reduce((a,r) => a+r.q2_2024, 0),
+      ooya_rate: 0.13,
+      sasaki_rate: 0.01,
+    }
+  };
+}
+
+// =============================================
+// MODAL / FILE HANDLING
+// =============================================
+function openModal() {
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+  pendingFile = null;
+  document.getElementById('dropText').innerHTML = 'クリックまたはドラッグ&ドロップ<br><span style="font-size:11px;color:#475569;">粗利分析_YYYYMM_*.xlsx</span>';
+  document.getElementById('btnProcess').style.display = 'none';
+  const sm = document.getElementById('statusMsg');
+  sm.style.display = 'none';
+}
+
+function handleFile(file) {
+  if (!file) return;
+  pendingFile = file;
+  document.getElementById('dropText').innerHTML = `📄 ${file.name}<br><span style="font-size:11px;color:#00d4aa;">ファイル選択済み</span>`;
+  document.getElementById('btnProcess').style.display = 'inline-block';
+}
+
+function processFile() {
+  if (!pendingFile) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const newData = parseXLSX(wb);
+      currentData = newData;
+      renderAll(newData);
+      showStatus('success', '✅ データを更新しました！');
+      setTimeout(closeModal, 1500);
+    } catch (err) {
+      showStatus('error', '❌ ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(pendingFile);
+}
+
+function showStatus(type, msg) {
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg;
+  el.className = 'status-msg ' + type;
+  el.style.display = 'block';
+}
+
+// Drag & drop
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  handleFile(e.dataTransfer.files[0]);
+});
+
+// Close modal on backdrop click
+document.getElementById('modalOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+// =============================================
+// INIT
+// =============================================
+renderAll(DEFAULT_DATA);
+</script>
+</body>
+</html>
